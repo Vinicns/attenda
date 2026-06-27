@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: attenda-api
+    env: python
+    buildCommand: pip install -r requirements.txt && apt-get install -y ffmpeg
+    startCommand: gunicorn app:app --workers 2 --timeout 120 --bind 0.0.0.0:$PORT
+    plan: free
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false          # você preenche no painel do Render
+      - key: EVOLUTION_URL
+        sync: false
+      - key: EVOLUTION_API_KEY
+        sync: false
+      - key: WEBHOOK_SECRET
+        sync: false
+      - key: ADMIN_API_KEY
+        sync: false
+      - key: COMPANY_KNOWLEDGE
+        sync: false
+      - key: ALWAYS_AUDIO
+        value: "false"       # true = sempre responde em áudio
