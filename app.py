@@ -547,3 +547,53 @@ def cliente_me():
         })
     except:
         return jsonify({"error": "Token inválido"}), 401
+
+# ─── Stats do Cliente ─────────────────────────────────────────────────────────
+
+@app.route("/cliente/stats", methods=["GET"])
+def cliente_stats():
+    from models import Cliente, Contato, Conversa
+    import jwt
+
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    try:
+        payload = jwt.decode(token, os.environ.get("NEXTAUTH_SECRET", "secret"), algorithms=["HS256"])
+        cliente_id = payload["cliente_id"]
+    except:
+        return jsonify({"error": "Token inválido"}), 401
+
+    contatos = Contato.query.filter_by(cliente_id=cliente_id).all()
+    conversas = Conversa.query.filter_by(cliente_id=cliente_id).all()
+
+    hoje = datetime.utcnow().date()
+    mensagens_hoje = sum(
+        c.mensagens for c in conversas
+        if c.atualizada_em and c.atualizada_em.date() == hoje
+    )
+
+    termometro_medio = 0
+    if contatos:
+        termometro_medio = int(sum(c.termometro for c in contatos) / len(contatos))
+
+    por_tipo = {"vendas": 0, "sac": 0, "outro": 0}
+    for c in conversas:
+        if c.tipo == "vendas" or c.tipo == "preco":
+            por_tipo["vendas"] += 1
+        elif c.tipo == "sac":
+            por_tipo["sac"] += 1
+        else:
+            por_tipo["outro"] += 1
+
+    contatos_list = [{
+        "phone": c.phone,
+        "termometro": c.termometro,
+        "ultima_interacao": c.ultima_interacao.isoformat() if c.ultima_interacao else ""
+    } for c in sorted(contatos, key=lambda x: x.ultima_interacao or datetime.min, reverse=True)[:10]]
+
+    return jsonify({
+        "total_conversas": len(conversas),
+        "mensagens_hoje": mensagens_hoje,
+        "termometro_medio": termometro_medio,
+        "por_tipo": por_tipo,
+        "contatos": contatos_list
+    })
