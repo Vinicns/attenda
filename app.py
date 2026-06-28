@@ -499,3 +499,51 @@ def salvar_conversa(phone, intent, sentiment, message_count):
             db.session.commit()
     except Exception as e:
         app.logger.error(f"Erro ao salvar conversa: {e}")
+
+# ─── Autenticação de Clientes ─────────────────────────────────────────────────
+
+@app.route("/auth/login", methods=["POST"])
+def cliente_login():
+    from models import Cliente
+    from werkzeug.security import check_password_hash
+    import jwt
+    
+    data = request.json or {}
+    email = data.get("email", "")
+    senha = data.get("senha", "")
+    
+    cliente = Cliente.query.filter_by(email=email).first()
+    if not cliente or not check_password_hash(cliente.senha_hash, senha):
+        return jsonify({"error": "Email ou senha incorretos"}), 401
+    
+    token = jwt.encode({
+        "cliente_id": cliente.id,
+        "email": cliente.email,
+        "exp": datetime.utcnow().timestamp() + 86400
+    }, os.environ.get("NEXTAUTH_SECRET", "secret"), algorithm="HS256")
+    
+    return jsonify({
+        "token": token,
+        "nome": cliente.nome,
+        "segmento": cliente.segmento
+    })
+
+@app.route("/auth/me", methods=["GET"])
+def cliente_me():
+    from models import Cliente
+    import jwt
+    
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    try:
+        payload = jwt.decode(token, os.environ.get("NEXTAUTH_SECRET", "secret"), algorithms=["HS256"])
+        cliente = Cliente.query.get(payload["cliente_id"])
+        if not cliente:
+            return jsonify({"error": "Cliente não encontrado"}), 404
+        return jsonify({
+            "id": cliente.id,
+            "nome": cliente.nome,
+            "email": cliente.email,
+            "segmento": cliente.segmento
+        })
+    except:
+        return jsonify({"error": "Token inválido"}), 401
