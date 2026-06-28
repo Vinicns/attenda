@@ -21,6 +21,9 @@ from human_personality import HumanPersonality, EmotionalMemory, Humanizer, buil
 
 app = Flask(__name__)
 
+from db_setup import init_db
+init_db(app)
+
 # ─── Clientes de API ──────────────────────────────────────────────────────────
 groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
@@ -460,3 +463,39 @@ def stats():
         "status": "online",
         "timestamp": datetime.now().isoformat(),
     })
+
+# ─── Salvar conversa no banco ─────────────────────────────────────────────────
+
+def salvar_conversa(phone, intent, sentiment, message_count):
+    try:
+        from models import Contato, Conversa
+        with app.app_context():
+            contato = Contato.query.filter_by(phone=phone).first()
+            if not contato:
+                contato = Contato(
+                    cliente_id=1,
+                    phone=phone,
+                    termometro=50
+                )
+                db.session.add(contato)
+                db.session.flush()
+
+            termometro = contato.termometro
+            if sentiment > 0.3:
+                termometro = min(100, termometro + 5)
+            elif sentiment < -0.3:
+                termometro = max(0, termometro - 10)
+            contato.termometro = termometro
+            contato.ultima_interacao = datetime.utcnow()
+
+            conversa = Conversa(
+                cliente_id=1,
+                contato_id=contato.id,
+                tipo=intent,
+                sentimento=sentiment,
+                mensagens=message_count
+            )
+            db.session.add(conversa)
+            db.session.commit()
+    except Exception as e:
+        app.logger.error(f"Erro ao salvar conversa: {e}")
