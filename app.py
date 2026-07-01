@@ -597,3 +597,50 @@ def cliente_stats():
         "por_tipo": por_tipo,
         "contatos": contatos_list
     })
+
+# ─── Admin: Gerenciar Clientes ────────────────────────────────────────────────
+
+@app.route("/admin/clientes", methods=["GET"])
+def listar_clientes():
+    api_key = request.headers.get("X-API-Key")
+    if api_key != os.environ.get("ADMIN_API_KEY"):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    from models import Cliente
+    clientes = Cliente.query.all()
+    return jsonify({"clientes": [{
+        "id": c.id,
+        "nome": c.nome,
+        "email": c.email,
+        "segmento": c.segmento,
+        "criado_em": c.criado_em.isoformat() if c.criado_em else ""
+    } for c in clientes]})
+
+@app.route("/admin/clientes", methods=["POST"])
+def criar_cliente():
+    api_key = request.headers.get("X-API-Key")
+    if api_key != os.environ.get("ADMIN_API_KEY"):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    from models import Cliente
+    from werkzeug.security import generate_password_hash
+    data = request.json or {}
+    
+    if Cliente.query.filter_by(email=data.get("email")).first():
+        return jsonify({"error": "Email já cadastrado"}), 400
+
+    c = Cliente(
+        nome=data.get("nome", ""),
+        email=data.get("email", ""),
+        senha_hash=generate_password_hash(data.get("senha", "")),
+        segmento=data.get("segmento", "geral")
+    )
+    db.session.add(c)
+    db.session.commit()
+    return jsonify({"ok": True, "cliente": {
+        "id": c.id,
+        "nome": c.nome,
+        "email": c.email,
+        "segmento": c.segmento,
+        "criado_em": c.criado_em.isoformat() if c.criado_em else ""
+    }}), 201
