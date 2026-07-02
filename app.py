@@ -635,6 +635,7 @@ def criar_cliente():
         senha_hash=generate_password_hash(data.get("senha", "")),
         segmento=data.get("segmento", "geral")
     )
+    from models import db
     db.session.add(c)
     db.session.commit()
     return jsonify({"ok": True, "cliente": {
